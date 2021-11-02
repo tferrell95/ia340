@@ -1,0 +1,617 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "4a41bb9a",
+   "metadata": {},
+   "source": [
+    "## import libraries "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "01ff4cf0",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/home/ec2-user/anaconda3/envs/python3/lib/python3.6/site-packages/psycopg2/__init__.py:144: UserWarning: The psycopg2 wheel package will be renamed from release 2.8; in order to keep installing from binary please use \"pip install psycopg2-binary\" instead. For details see: <http://initd.org/psycopg/docs/install.html#binary-install-from-pypi>.\n",
+      "  \"\"\")\n"
+     ]
+    }
+   ],
+   "source": [
+    "import pandas\n",
+    "import configparser\n",
+    "import psycopg2"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "31ac67b8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "config = configparser.ConfigParser()\n",
+    "config.read('config.ini')\n",
+    "\n",
+    "host = config['myaws']['host']\n",
+    "db = config['myaws']['db']\n",
+    "user = config['myaws']['user']\n",
+    "pwd = config['myaws']['pwd']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "5a82731a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "conn = psycopg2.connect(host = host,\n",
+    "                       user = user,\n",
+    "                        password = pwd,\n",
+    "                        dbname = db\n",
+    "                       )\n",
+    "cur = conn.cursor()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "36307be9",
+   "metadata": {},
+   "source": [
+    "## create the hosue table"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c92b13f6",
+   "metadata": {},
+   "source": [
+    "make sure change the schema name to your gp number"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 99,
+   "id": "6109920a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "\n",
+    "# replace the schema and table name to your schema and table name\n",
+    "table_sql = \"\"\"\n",
+    "            CREATE TABLE IF NOT EXISTS demo.house\n",
+    "            (\n",
+    "\n",
+    "                price integer,\n",
+    "                bed integer,\n",
+    "                bath integer,\n",
+    "                area integer,\n",
+    "                address VARCHAR(200),\n",
+    "                PRIMARY KEY(address)\n",
+    "            );\n",
+    "\n",
+    "            \"\"\"\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4d2ff68e",
+   "metadata": {},
+   "source": [
+    "use the bellow cell only if you want to delete the table"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 117,
+   "id": "308a65f2",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#conn.rollback()\n",
+    "#table_sql=\"drop table if exists demo.house\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 118,
+   "id": "1ee8a5f3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "cur.execute(table_sql)\n",
+    "conn.commit()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4c0e33be",
+   "metadata": {},
+   "source": [
+    "## define the search region"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 119,
+   "id": "b1c7264f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "url = 'https://www.trulia.com/VA/Harrisonburg/22801/'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 120,
+   "id": "f3eae8b1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "\n",
+    "import urllib.request\n",
+    "response = urllib.request.urlopen(url)\n",
+    "html_data= response.read()\n",
+    "# print(html_data.decode('utf-8'))\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 121,
+   "id": "1b7319d5",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "\n",
+    "from bs4 import BeautifulSoup\n",
+    "soup = BeautifulSoup(html_data,'html.parser')\n",
+    "# print (soup)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "280895b5",
+   "metadata": {},
+   "source": [
+    "## insert the records into database"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 122,
+   "id": "36be749a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "for li_class in soup.find_all('li', class_ = 'Grid__CellBox-sc-144isrp-0 SearchResultsList__WideCell-b7y9ki-2 jiZmPM'):\n",
+    "    try:\n",
+    "        for price_div in li_class.find_all('div',{'data-testid':'property-price'}):\n",
+    "            price =int(price_div.text.replace('$','').replace(\",\",\"\"))\n",
+    "        for bed_div in li_class.find_all('div', {'data-testid':'property-beds'}):\n",
+    "            bed= int(bed_div.text.replace('bd','').replace(\",\",\"\"))\n",
+    "        for bath_div in li_class.find_all('div',{'data-testid':'property-baths'}):\n",
+    "            bath =int(bath_div.text.replace('ba','').replace(\",\",\"\"))\n",
+    "        for area_div in li_class.find_all('div',{'data-testid':'property-floorSpace'}):\n",
+    "            area=int(area_div.text.split('sqft')[0].replace(\",\",\"\"))\n",
+    "        for address_div in li_class.find_all('div',{'data-testid':'property-address'}):\n",
+    "            address =address_div.text\n",
+    "\n",
+    "        try:\n",
+    "            sql_insert = \"\"\"\n",
+    "                        insert into demo.house(price,bed,bath,area,address)\n",
+    "                        values('{}','{}','{}','{}','{}')            \n",
+    "                        \"\"\".format(price,bed,bath,area,address)\n",
+    "\n",
+    "            cur.execute(sql_insert)\n",
+    "            conn.commit()\n",
+    "        except:\n",
+    "            conn.rollback()\n",
+    "    except:\n",
+    "        pass\n",
+    "        "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6f875a2a",
+   "metadata": {},
+   "source": [
+    "## Query the Table"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 123,
+   "id": "f3a652a8",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>price</th>\n",
+       "      <th>bed</th>\n",
+       "      <th>bath</th>\n",
+       "      <th>area</th>\n",
+       "      <th>address</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>587000</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2</td>\n",
+       "      <td>2378</td>\n",
+       "      <td>131 Cadogan Ct, Rockingham, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>249500</td>\n",
+       "      <td>3</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1778</td>\n",
+       "      <td>1451 Flowing Spring Ln, Rockingham, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>212000</td>\n",
+       "      <td>3</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1814</td>\n",
+       "      <td>577 Stonewall Dr, Harrisonburg, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>439000</td>\n",
+       "      <td>5</td>\n",
+       "      <td>4</td>\n",
+       "      <td>3873</td>\n",
+       "      <td>1215 Windsor Rd, Harrisonburg, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>214900</td>\n",
+       "      <td>4</td>\n",
+       "      <td>4</td>\n",
+       "      <td>1396</td>\n",
+       "      <td>520 Davis Mills Dr #202, Harrisonburg, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>532000</td>\n",
+       "      <td>4</td>\n",
+       "      <td>3</td>\n",
+       "      <td>3511</td>\n",
+       "      <td>492 S Mason St, Harrisonburg, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>6</th>\n",
+       "      <td>255000</td>\n",
+       "      <td>3</td>\n",
+       "      <td>4</td>\n",
+       "      <td>1478</td>\n",
+       "      <td>2951 Diamond Spring Ln, Rockingham, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>7</th>\n",
+       "      <td>419000</td>\n",
+       "      <td>3</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2237</td>\n",
+       "      <td>1494 Hillside Ave, Harrisonburg, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>8</th>\n",
+       "      <td>539000</td>\n",
+       "      <td>4</td>\n",
+       "      <td>4</td>\n",
+       "      <td>3522</td>\n",
+       "      <td>3210 Barrington Dr, Rockingham, VA 22801</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>9</th>\n",
+       "      <td>349900</td>\n",
+       "      <td>4</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2193</td>\n",
+       "      <td>1208 Windsor Rd, Harrisonburg, VA 22801</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "    price  bed  bath  area                                          address\n",
+       "0  587000    3     2  2378             131 Cadogan Ct, Rockingham, VA 22801\n",
+       "1  249500    3     3  1778     1451 Flowing Spring Ln, Rockingham, VA 22801\n",
+       "2  212000    3     3  1814         577 Stonewall Dr, Harrisonburg, VA 22801\n",
+       "3  439000    5     4  3873          1215 Windsor Rd, Harrisonburg, VA 22801\n",
+       "4  214900    4     4  1396  520 Davis Mills Dr #202, Harrisonburg, VA 22801\n",
+       "5  532000    4     3  3511           492 S Mason St, Harrisonburg, VA 22801\n",
+       "6  255000    3     4  1478     2951 Diamond Spring Ln, Rockingham, VA 22801\n",
+       "7  419000    3     3  2237        1494 Hillside Ave, Harrisonburg, VA 22801\n",
+       "8  539000    4     4  3522         3210 Barrington Dr, Rockingham, VA 22801\n",
+       "9  349900    4     3  2193          1208 Windsor Rd, Harrisonburg, VA 22801"
+      ]
+     },
+     "execution_count": 123,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "df = pandas.read_sql_query('select * from demo.house ', conn)\n",
+    "df[:10]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "62b822da",
+   "metadata": {},
+   "source": [
+    "## basic stat"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 124,
+   "id": "4f2d4836",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>price</th>\n",
+       "      <th>bed</th>\n",
+       "      <th>bath</th>\n",
+       "      <th>area</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>count</th>\n",
+       "      <td>3.800000e+01</td>\n",
+       "      <td>38.000000</td>\n",
+       "      <td>38.000000</td>\n",
+       "      <td>38.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>mean</th>\n",
+       "      <td>4.122895e+05</td>\n",
+       "      <td>3.868421</td>\n",
+       "      <td>3.657895</td>\n",
+       "      <td>2702.868421</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>std</th>\n",
+       "      <td>3.183027e+05</td>\n",
+       "      <td>2.451376</td>\n",
+       "      <td>2.633221</td>\n",
+       "      <td>1803.848366</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>min</th>\n",
+       "      <td>9.900000e+04</td>\n",
+       "      <td>1.000000</td>\n",
+       "      <td>1.000000</td>\n",
+       "      <td>596.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>25%</th>\n",
+       "      <td>2.127250e+05</td>\n",
+       "      <td>2.000000</td>\n",
+       "      <td>2.000000</td>\n",
+       "      <td>1396.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>50%</th>\n",
+       "      <td>2.922000e+05</td>\n",
+       "      <td>3.500000</td>\n",
+       "      <td>3.000000</td>\n",
+       "      <td>1973.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>75%</th>\n",
+       "      <td>5.372500e+05</td>\n",
+       "      <td>4.000000</td>\n",
+       "      <td>4.000000</td>\n",
+       "      <td>3727.500000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>max</th>\n",
+       "      <td>1.250000e+06</td>\n",
+       "      <td>15.000000</td>\n",
+       "      <td>16.000000</td>\n",
+       "      <td>7440.000000</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "              price        bed       bath         area\n",
+       "count  3.800000e+01  38.000000  38.000000    38.000000\n",
+       "mean   4.122895e+05   3.868421   3.657895  2702.868421\n",
+       "std    3.183027e+05   2.451376   2.633221  1803.848366\n",
+       "min    9.900000e+04   1.000000   1.000000   596.000000\n",
+       "25%    2.127250e+05   2.000000   2.000000  1396.000000\n",
+       "50%    2.922000e+05   3.500000   3.000000  1973.000000\n",
+       "75%    5.372500e+05   4.000000   4.000000  3727.500000\n",
+       "max    1.250000e+06  15.000000  16.000000  7440.000000"
+      ]
+     },
+     "execution_count": 124,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "df.describe()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "14aa753d",
+   "metadata": {},
+   "source": [
+    "## price distribution"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 125,
+   "id": "b5fdff91",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<AxesSubplot:>"
+      ]
+     },
+     "execution_count": 125,
+     "metadata": {},
+     "output_type": "execute_result"
+    },
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 1 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "df['price'].hist()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "09fa0536",
+   "metadata": {},
+   "source": [
+    "## bed vs bath"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 126,
+   "id": "b9bcb674",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<AxesSubplot:xlabel='bed', ylabel='bath'>"
+      ]
+     },
+     "execution_count": 126,
+     "metadata": {},
+     "output_type": "execute_result"
+    },
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 1 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "df.plot.scatter(x='bed',y='bath')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "df4c3357",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "conda_python3",
+   "language": "python",
+   "name": "conda_python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.13"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
